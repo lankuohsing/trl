@@ -50,6 +50,7 @@ os.environ.setdefault("TRACKIO_SPACE_ID", "trl-trackio")
 
 
 """
+
 python -i examples/scripts/ppo/ppo.py \
     --dataset_name trl-internal-testing/descriptiveness-sentiment-trl-style \
     --dataset_train_split descriptiveness \
@@ -77,12 +78,51 @@ accelerate launch --config_file examples/accelerate_configs/deepspeed_zero3.yaml
     --reward_model_path EleutherAI/pythia-1b-deduped \
     --local_rollout_forward_batch_size 1 \
     --missing_eos_penalty 1.0
+    
+lgx:
+python examples/scripts/ppo/ppo.py \
+    --dataset_name trl-internal-testing/descriptiveness-sentiment-trl-style \
+    --dataset_train_split descriptiveness \
+    --learning_rate 3e-6 \
+    --num_ppo_epochs 1 \
+    --num_mini_batches 1 \
+    --output_dir models/minimal/ppo \
+    --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 1 \
+    --total_episodes 10000 \
+    --model_name_or_path EleutherAI/pythia-1b-deduped \
+    --sft_model_path EleutherAI/pythia-1b-deduped \
+    --reward_model_path EleutherAI/pythia-1b-deduped \
+    --missing_eos_penalty 1.0
 """
 
 
+def set_args():
+    script_args=ScriptArguments()
+    script_args.dataset_name="/Users/guoxing.lan/projects/dataset/for_rl/descriptiveness-sentiment-trl-style"
+    script_args.dataset_train_split="descriptiveness"
+
+    training_args=PPOConfig() # PPOConfig<-OnPolicyConfig<-TrainingArguments
+    training_args.learning_rate=3e-6
+    training_args.num_ppo_epochs=1
+    training_args.num_mini_batches=1
+    training_args.output_dir="models/minimal/ppo"
+    training_args.per_device_train_batch_size=4
+    training_args.gradient_accumulation_steps=1
+    training_args.total_episodes=100
+    training_args.model_adapter_name="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m"
+    training_args.sft_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m"
+    training_args.reward_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m"
+    training_args.missing_eos_penalty=1.0
+    training_args.no_cuda=True
+    training_args.use_cpu=True
+    model_args=ModelConfig()
+    return script_args, training_args, model_args
 if __name__ == "__main__":
-    parser = HfArgumentParser((ScriptArguments, PPOConfig, ModelConfig))
-    script_args, training_args, model_args = parser.parse_args_into_dataclasses()
+    # parser = HfArgumentParser((ScriptArguments, PPOConfig, ModelConfig))
+    # script_args, training_args, model_args = parser.parse_args_into_dataclasses()
+
+    script_args, training_args, model_args=set_args()
     # remove output_dir if exists
     shutil.rmtree(training_args.output_dir, ignore_errors=True)
 
@@ -156,6 +196,7 @@ if __name__ == "__main__":
     # Compute that only on the main process for faster data processing.
     # see: https://github.com/huggingface/trl/pull/1255
     with PartialState().local_main_process_first():
+    # if True:
         train_dataset = prepare_dataset(train_dataset, tokenizer)
         eval_dataset = prepare_dataset(eval_dataset, tokenizer)
 
