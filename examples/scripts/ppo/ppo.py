@@ -22,10 +22,11 @@
 
 import os
 import shutil
-
+os.environ['HTTP_PROXY'] = 'http://127.0.0.1:18669'  # 将端口号替换成你的实际端口
+os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:18669' # 将端口号替换成你的实际端口
 import torch
 from accelerate import PartialState
-from datasets import load_dataset
+from datasets import load_dataset,load_from_disk
 from transformers import (
     AutoModelForCausalLM,
     AutoModelForSequenceClassification,
@@ -44,10 +45,8 @@ from trl import (
 )
 from trl.trainer.utils import SIMPLE_CHAT_TEMPLATE
 
-
 # Enable logging in a Hugging Face Space
 os.environ.setdefault("TRACKIO_SPACE_ID", "trl-trackio")
-
 
 """
 
@@ -98,31 +97,35 @@ python examples/scripts/ppo/ppo.py \
 
 
 def set_args():
-    script_args=ScriptArguments()
-    script_args.dataset_name="/Users/guoxing.lan/projects/dataset/for_rl/descriptiveness-sentiment-trl-style"
-    script_args.dataset_train_split="descriptiveness"
+    script_args = ScriptArguments()
+    script_args.dataset_name = "/Users/guoxing.lan/projects/dataset/for_rl/descriptiveness-sentiment-trl-style"
+    script_args.dataset_train_split = "descriptiveness"
 
-    training_args=PPOConfig() # PPOConfig<-OnPolicyConfig<-TrainingArguments
-    training_args.learning_rate=3e-6
-    training_args.num_ppo_epochs=1
-    training_args.num_mini_batches=1
-    training_args.output_dir="models/minimal/ppo"
-    training_args.per_device_train_batch_size=4
-    training_args.gradient_accumulation_steps=1
-    training_args.total_episodes=100
-    training_args.model_adapter_name="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m"
-    training_args.sft_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m"
-    training_args.reward_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m"
-    training_args.missing_eos_penalty=1.0
-    training_args.no_cuda=True
-    training_args.use_cpu=True
-    model_args=ModelConfig()
+    training_args = PPOConfig(
+        learning_rate=3e-6,
+        num_ppo_epochs=1,
+        num_mini_batches=1,
+        output_dir="models/minimal/ppo",
+        per_device_train_batch_size=4,
+        gradient_accumulation_steps=1,
+        total_episodes=100,
+        sft_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m",
+        reward_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m",
+        missing_eos_penalty=1.0,
+        no_cuda=True,
+        use_cpu=True
+    )  # PPOConfig<-OnPolicyConfig<-TrainingArguments
+
+    model_args = ModelConfig(model_name_or_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m",
+                             )
     return script_args, training_args, model_args
+
+
 if __name__ == "__main__":
     # parser = HfArgumentParser((ScriptArguments, PPOConfig, ModelConfig))
     # script_args, training_args, model_args = parser.parse_args_into_dataclasses()
 
-    script_args, training_args, model_args=set_args()
+    script_args, training_args, model_args = set_args()
     # remove output_dir if exists
     shutil.rmtree(training_args.output_dir, ignore_errors=True)
 
@@ -168,13 +171,21 @@ if __name__ == "__main__":
     ################
     # Dataset
     ################
-    dataset = load_dataset(
-        script_args.dataset_name, name=script_args.dataset_config, split=script_args.dataset_train_split
+    # dataset = load_dataset(
+    #     script_args.dataset_name, name=script_args.dataset_config, split=script_args.dataset_train_split
+    # )
+    # dataset0 = load_dataset(
+    #     "trl-internal-testing/descriptiveness-sentiment-trl-style", name=script_args.dataset_config, split=script_args.dataset_train_split
+    # )
+    dataset = load_from_disk(
+        script_args.dataset_name
     )
+    dataset=dataset[script_args.dataset_train_split]
     eval_samples = 100
     train_dataset = dataset.select(range(len(dataset) - eval_samples))
     eval_dataset = dataset.select(range(len(dataset) - eval_samples, len(dataset)))
     dataset_text_field = "prompt"
+
 
     def prepare_dataset(dataset, tokenizer):
         """pre-tokenize the dataset before training; only collate during training"""
@@ -193,10 +204,11 @@ if __name__ == "__main__":
             num_proc=training_args.dataset_num_proc,
         )
 
+
     # Compute that only on the main process for faster data processing.
     # see: https://github.com/huggingface/trl/pull/1255
     with PartialState().local_main_process_first():
-    # if True:
+        # if True:
         train_dataset = prepare_dataset(train_dataset, tokenizer)
         eval_dataset = prepare_dataset(eval_dataset, tokenizer)
 
