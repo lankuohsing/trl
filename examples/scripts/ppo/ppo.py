@@ -108,6 +108,7 @@ def set_args():
         output_dir="models/minimal/ppo",
         per_device_train_batch_size=4,
         gradient_accumulation_steps=1,
+        local_rollout_forward_batch_size=2,
         total_episodes=100,
         sft_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m",
         reward_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m",
@@ -181,7 +182,8 @@ if __name__ == "__main__":
         script_args.dataset_name
     )
     dataset=dataset[script_args.dataset_train_split]
-    eval_samples = 100
+    dataset=dataset.select(range(0,60))
+    eval_samples = 10
     train_dataset = dataset.select(range(len(dataset) - eval_samples))
     eval_dataset = dataset.select(range(len(dataset) - eval_samples, len(dataset)))
     dataset_text_field = "prompt"
