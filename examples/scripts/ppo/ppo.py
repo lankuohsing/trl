@@ -100,18 +100,18 @@ def set_args():
     script_args = ScriptArguments()
     script_args.dataset_name = "/Users/guoxing.lan/projects/dataset/for_rl/descriptiveness-sentiment-trl-style"
     script_args.dataset_train_split = "descriptiveness"
-
+    # num_ppo_epochs和num_mini_batches都是为了平衡效率与稳定性而设计的“数据复用”策略。跟off-policy里面的“经验回放”不是一回事
     training_args = PPOConfig(
         learning_rate=3e-6,
-        num_ppo_epochs=1,
-        num_mini_batches=1,
-        output_dir="models/minimal/ppo",
+        num_ppo_epochs=1,  # 因为roll_out成本很大。在每次收集完一批经验数据（rollout）后，使用该数据对模型进行参数更新的轮数
+        num_mini_batches=1,  # 将一次经验收集（rollout）得到的数据批（batch）进一步划分成更小的“小批次”（minibatches）用于梯度计算。1说明不划分
+        output_dir=r"models\minimal\ppo",
         per_device_train_batch_size=4,
         gradient_accumulation_steps=1,
-        local_rollout_forward_batch_size=2,
-        total_episodes=100,
-        sft_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m",
-        reward_model_path="/Users/guoxing.lan/projects/models/EleutherAI/pythia-160m",
+        local_rollout_forward_batch_size=2,  # 为了解决大模型在生成阶段显存不足的问题而引入的参数。它会将一个大的生成任务拆分成更小的批次依次执行，然后再合并结果。
+        total_episodes=100,  # 处理的总样本数。num_train_epochs = total_episodes / train_dataset_len
+        sft_model_path=r'D:\projects\models\EleutherAI\pythia-160m',
+        reward_model_path=r'D:\projects\models\EleutherAI\pythia-160m',
         missing_eos_penalty=1.0,
         no_cuda=True,
         use_cpu=True
